@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>{{ video_title }} - Shorts | 仙人Tube Pro</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent:#007bff;
+    --accent-glow: rgba(0,123,255,0.7);
+  }
+  html[data-theme="glass"] :root, html[data-theme="glass"] {
+    --accent:#ff4f9a;
+    --accent-glow: rgba(255,79,154,0.75);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin:0; padding:0; height:100%; width:100%;
+    background:#000; color:#fff;
+    font-family:'Noto Sans JP','Segoe UI',sans-serif;
+    overflow:hidden; overscroll-behavior:none;
+  }
+
+  /* ---- Feed ---- */
+  #feed{
+    position:fixed; inset:0;
+    height:100dvh; width:100vw;
+    overflow-y:scroll;
+    scroll-snap-type:y mandatory;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+    background:#000;
+  }
+  #feed::-webkit-scrollbar{display:none;}
+
+  .short-item{
+    position:relative; width:100vw; height:100dvh;
+    scroll-snap-align:start; scroll-snap-stop:always;
+    display:flex; align-items:center; justify-content:center;
+    background:#000; overflow:hidden;
+  }
+  .short-item video{
+    width:100%; height:100%; object-fit:contain; background:#000;
+    transition: opacity .15s;
+  }
+  .short-item .poster{
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; filter:blur(28px) brightness(.55);
+    transform:scale(1.1); z-index:0;
+  }
+  .short-item .stage{
+    position:relative; z-index:1; width:100%; height:100%;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  /* ---- Center overlay (play/pause/spinner) ---- */
+  .center-overlay{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    z-index:5; pointer-events:none;
+  }
+  .center-overlay .icon{
+    font-size:64px; color:rgba(255,255,255,.85);
+    text-shadow:0 4px 24px rgba(0,0,0,.6);
+    display:none;
+  }
+  .spinner{
+    width:46px; height:46px;
+    border:4px solid rgba(255,255,255,.25);
+    border-top-color:#fff;
+    border-radius:50%;
+    animation:spin .9s linear infinite;
+    display:none;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ---- Progress bar ---- */
+  .progress{
+    position:absolute; left:0; right:0; bottom:0; height:3px;
+    background:rgba(255,255,255,.18); z-index:6;
+  }
+  .progress > div{
+    height:100%; width:0%;
+    background:var(--accent);
+    box-shadow:0 0 8px var(--accent-glow);
+    transition:width .15s linear;
+  }
+
+  /* ---- Side action buttons ---- */
+  .side{
+    position:absolute; right:10px; bottom:120px;
+    display:flex; flex-direction:column; gap:18px; align-items:center;
+    z-index:8;
+  }
+  .side .btn{
+    display:flex; flex-direction:column; align-items:center; cursor:pointer;
+  }
+  .side .icon-c{
+    width:46px; height:46px; border-radius:50%;
+    background:rgba(30,30,30,.65); backdrop-filter: blur(6px);
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px; color:#fff;
+    transition:transform .15s, background .2s;
+  }
+  .side .btn:active .icon-c{ transform:scale(.9); background:rgba(80,80,80,.85); }
+  .side .lbl{ font-size:11px; font-weight:600; margin-top:4px;
+              text-shadow:0 1px 3px rgba(0,0,0,.6); }
+
+  /* ---- Bottom info ---- */
+  .bottom-info{
+    position:absolute; left:0; right:0; bottom:0;
+    padding:24px 80px 30px 16px;
+    background: linear-gradient(transparent, rgba(0,0,0,.85));
+    z-index:7;
+  }
+  .author-row{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .author{ font-weight:700; font-size:15px; }
+  .sub-btn{
+    background:#fff; color:#000; padding:6px 14px;
+    border-radius:18px; font-size:12px; font-weight:700; border:none; cursor:pointer;
+  }
+  .vt{
+    font-size:14px; line-height:1.4; max-width:100%;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    overflow:hidden; cursor:pointer; text-shadow:0 1px 3px rgba(0,0,0,.5);
+  }
+
+  /* ---- Top controls ---- */
+  .top-ctrl{
+    position:fixed; top:14px; left:0; right:0; padding:0 14px;
+    display:flex; justify-content:space-between; align-items:center;
+    z-index:50; pointer-events:none;
+  }
+  .top-ctrl > *{ pointer-events:auto; }
+  .top-btn{
+    width:40px; height:40px; border-radius:50%;
+    background:rgba(0,0,0,.4); color:#fff; border:none; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:16px; backdrop-filter:blur(6px);
+  }
+  .brand{ font-weight:700; font-size:14px; color:#fff; opacity:.85;
+          text-shadow:0 1px 3px rgba(0,0,0,.6); }
+  .brand .pro{ color:var(--accent); }
+
+  /* ---- Description sheet ---- */
+  .sheet{
+    position:fixed; left:0; right:0; bottom:-100%;
+    height:65dvh; background:#181818; color:#fff;
+    border-top-left-radius:18px; border-top-right-radius:18px;
+    z-index:100; transition:bottom .3s cubic-bezier(.4,0,.2,1);
+    display:flex; flex-direction:column; padding:14px 18px 18px;
+  }
+  .sheet.open{ bottom:0; }
+  .sheet .handle{ width:38px; height:4px; background:#555; border-radius:2px;
+                  margin:0 auto 8px; }
+  .sheet header{ display:flex; justify-content:space-between; align-items:center;
+                 border-bottom:1px solid #2a2a2a; padding-bottom:10px; margin-bottom:10px; }
+  .sheet header h3{ margin:0; font-size:16px; }
+  .sheet .body{ overflow-y:auto; flex:1; font-size:14px; line-height:1.6;
+                color:#ddd; }
+  .sheet .close{ background:none; border:none; color:#fff; font-size:18px; cursor:pointer; }
+  .overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:99;
+            display:none; }
+
+  /* ---- Swipe hint (first short only) ---- */
+  .hint{
+    position:absolute; left:50%; bottom:55%; transform:translate(-50%,50%);
+    color:rgba(255,255,255,.7); font-size:12px; z-index:9;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    animation:bob 1.6s ease-in-out infinite;
+    pointer-events:none; text-shadow:0 1px 3px rgba(0,0,0,.6);
+  }
+  @keyframes bob{
+    0%,100%{transform:translate(-50%,50%); opacity:.6;}
+    50%    {transform:translate(-50%,30%); opacity:1;}
+  }
+
+  /* ---- "End of feed" sentinel ---- */
+  .end-card{
+    width:100%; height:100dvh; scroll-snap-align:start;
+    display:flex; align-items:center; justify-content:center;
+    color:#aaa; flex-direction:column; gap:10px;
+  }
+  .end-card .reload{
+    background:var(--accent); color:#fff; border:none; padding:10px 22px;
+    border-radius:24px; font-weight:700; cursor:pointer;
+    box-shadow:0 0 12px var(--accent-glow);
+  }
+</style>
+</head>
+<body>
+
+<div class="top-ctrl">
+  <button class="top-btn" onclick="history.length>1?history.back():(location.href='/')" aria-label="戻る">
+    <i class="fas fa-arrow-left"></i>
+  </button>
+  <div class="brand">仙人Tube <span class="pro">Pro</span> · Shorts</div>
+  <button class="top-btn" onclick="location.href='/'" aria-label="ホーム">
+    <i class="fas fa-home"></i>
+  </button>
+</div>
+
+<div id="feed">
+  {# First card: server-rendered current short #}
+  <section class="short-item"
+           data-vid="{{ videoid }}"
+           data-title="{{ video_title }}"
+           data-author="{{ author }}"
+           data-author-id="{{ author_id or '' }}"
+           data-views="{{ view_count }}"
+           data-likes="{{ like_count }}"
+           data-loaded="1">
+    <img class="poster" src="/proxy/thumb?v={{ videoid }}" alt="">
+    <div class="stage">
+      <video loop playsinline preload="auto" muted="false">
+        <source src="{{ videourls[0] if videourls else '' }}" type="video/mp4">
+      </video>
+    </div>
+    <div class="center-overlay">
+      <i class="icon fas fa-play"></i>
+      <div class="spinner"></div>
+    </div>
+    <div class="progress"><div></div></div>
+    <div class="side">
+      <div class="btn" onclick="likeToggle(this)"><div class="icon-c"><i class="fas fa-heart"></i></div><div class="lbl">{{ like_count or '高評価' }}</div></div>
+      <div class="btn" onclick="openSheet('comments')"><div class="icon-c"><i class="fas fa-comment-dots"></i></div><div class="lbl">コメント</div></div>
+      <div class="btn" onclick="shareCurrent()"><div class="icon-c"><i class="fas fa-share"></i></div><div class="lbl">共有</div></div>
+      <div class="btn" onclick="openCurrentYT()"><div class="icon-c"><i class="fab fa-youtube"></i></div><div class="lbl">YouTube</div></div>
+    </div>
+    <div class="bottom-info">
+      <div class="author-row">
+        <div class="author">@{{ author }}</div>
+        {% if author_id %}<a href="/channel/{{ author_id }}" class="sub-btn" style="text-decoration:none;">チャンネル</a>{% endif %}
+      </div>
+      <div class="vt" onclick="openSheet('description')">{{ video_title }}</div>
+    </div>
+    {% if related_shorts %}
+    <div class="hint"><i class="fas fa-chevron-up"></i><span>上にスワイプ</span></div>
+    {% endif %}
+  </section>
+
+  {# Related shorts: placeholders, loaded in batch via JS #}
+  {% for r in related_shorts %}
+  <section class="short-item"
+           data-vid="{{ r.videoId }}"
+           data-title="{{ r.title }}"
+           data-author="{{ r.author }}"
+           data-loaded="0">
+    <img class="poster" src="/proxy/thumb?v={{ r.videoId }}" alt="">
+    <div class="stage">
+      <video loop playsinline preload="none" poster="/proxy/thumb?v={{ r.videoId }}"></video>
+    </div>
+    <div class="center-overlay">
+      <i class="icon fas fa-play"></i>
+      <div class="spinner"></div>
+    </div>
+    <div class="progress"><div></div></div>
+    <div class="side">
+      <div class="btn" onclick="likeToggle(this)"><div class="icon-c"><i class="fas fa-heart"></i></div><div class="lbl">高評価</div></div>
+      <div class="btn" onclick="openSheet('comments')"><div class="icon-c"><i class="fas fa-comment-dots"></i></div><div class="lbl">コメント</div></div>
+      <div class="btn" onclick="shareCurrent()"><div class="icon-c"><i class="fas fa-share"></i></div><div class="lbl">共有</div></div>
+      <div class="btn" onclick="openCurrentYT()"><div class="icon-c"><i class="fab fa-youtube"></i></div><div class="lbl">YouTube</div></div>
+    </div>
+    <div class="bottom-info">
+      <div class="author-row">
+        <div class="author">@{{ r.author }}</div>
+      </div>
+      <div class="vt" onclick="openSheet('description')">{{ r.title }}</div>
+    </div>
+  </section>
+  {% endfor %}
+
+  <div class="end-card" id="endCard">
+    <i class="fas fa-magnifying-glass" style="font-size:32px;opacity:.6;"></i>
+    <div>もっと Shorts を取得中…</div>
+    <button class="reload" onclick="loadMoreShorts(true)">もう一度試す</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet">
+  <div class="handle"></div>
+  <header>
+    <h3 id="sheetTitle">説明</h3>
+    <button class="close" onclick="closeSheet()"><i class="fas fa-times"></i></button>
+  </header>
+  <div class="body" id="sheetBody">
+    {{ description | safe }}
+  </div>
+</div>
+
+<script>
+(function(){
+  const feed = document.getElementById('feed');
+  const sheet = document.getElementById('sheet');
+  const overlay = document.getElementById('overlay');
+  const endCard = document.getElementById('endCard');
+  const sheetTitle = document.getElementById('sheetTitle');
+  const sheetBody = document.getElementById('sheetBody');
+  let items = Array.from(feed.querySelectorAll('.short-item'));
+  let current = items[0];
+  let isLoadingMore = false;
+
+  // ---- Watched-history (for related recommendations) ----
+  const HIST_KEY = 'st-short-history';
+  function loadHistory(){
+    try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); }
+    catch(e){ return []; }
+  }
+  function pushHistory(entry){
+    if(!entry || !entry.vid) return;
+    let h = loadHistory().filter(x => x.vid !== entry.vid);
+    h.unshift(entry);
+    if(h.length > 40) h = h.slice(0, 40);
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch(e){}
+  }
+  function recommendQuery(){
+    const h = loadHistory();
+    if(!h.length) return null;
+    // Bias to most recent — pick a random title from the top 6 history items
+    const pool = h.slice(0, 6);
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    const words = (pick.title || '').split(/\s+/).filter(Boolean).slice(0, 4).join(' ');
+    return words || (pick.author || null);
+  }
+
+  // ---- Video setup ----
+  function bind(item){
+    const v = item.querySelector('video');
+    const playIcon = item.querySelector('.center-overlay .icon');
+    const spinner = item.querySelector('.spinner');
+    const pbar = item.querySelector('.progress > div');
+
+    v.addEventListener('pause', ()=>{ playIcon.style.display='block'; });
+    v.addEventListener('play',  ()=>{ playIcon.style.display='none'; });
+    v.addEventListener('waiting',()=>{ spinner.style.display='block'; });
+    v.addEventListener('playing',()=>{ spinner.style.display='none'; });
+    v.addEventListener('timeupdate', ()=>{
+      if(v.duration){ pbar.style.width = (v.currentTime/v.duration*100)+'%'; }
+    });
+
+    // Tap to play/pause (ignore taps on side/bottom/top controls)
+    item.addEventListener('click', (e)=>{
+      if(e.target.closest('.side, .bottom-info, .top-ctrl, .sheet')) return;
+      if(v.paused){ v.play().catch(()=>{}); } else { v.pause(); }
+    });
+  }
+  items.forEach(bind);
+
+  // ---- Batch-loader: load multiple short URLs in one shot ----
+  async function batchLoad(itemsToLoad){
+    const ids = itemsToLoad
+      .filter(it => it.dataset.loaded === '0')
+      .map(it => it.dataset.vid);
+    if(!ids.length) return;
+    ids.forEach(id => {
+      const it = items.find(x => x.dataset.vid === id);
+      if(it){ it.dataset.loaded='loading';
+              it.querySelector('.spinner').style.display='block'; }
+    });
+    try{
+      const res = await fetch('/api/shorts_batch?ids=' + encodeURIComponent(ids.join(',')));
+      const data = await res.json();
+      (data.items||[]).forEach(meta => {
+        const it = items.find(x => x.dataset.vid === meta.videoId);
+        if(!it || !meta.url) return;
+        const v = it.querySelector('video');
+        v.src = meta.url;
+        v.preload = 'auto';
+        v.load();
+        it.dataset.loaded='1';
+        it.querySelector('.spinner').style.display='none';
+      });
+      // Anything still loading: mark failed so we don't retry constantly
+      itemsToLoad.forEach(it => {
+        if(it.dataset.loaded==='loading'){ it.dataset.loaded='failed';
+          it.querySelector('.spinner').style.display='none'; }
+      });
+    }catch(e){
+      itemsToLoad.forEach(it => {
+        if(it.dataset.loaded==='loading'){ it.dataset.loaded='failed';
+          it.querySelector('.spinner').style.display='none'; }
+      });
+    }
+  }
+
+  // Split into small parallel batches so the first ready URLs come back fast.
+  // (One big batch is gated on the slowest id in asyncio.gather.)
+  function batchLoadFast(targets, chunk){
+    chunk = chunk || 3;
+    for(let i=0; i<targets.length; i+=chunk){
+      batchLoad(targets.slice(i, i+chunk));
+    }
+  }
+
+  // Pre-warm: load the next 12 items aggressively so the next short is ready instantly.
+  function prewarmAround(idx){
+    // Priority 1: the immediate next 3 in tiny batches → fastest first paint.
+    const hot = [];
+    for(let i=idx; i<=idx+3 && i<items.length; i++){
+      if(items[i].dataset.loaded==='0') hot.push(items[i]);
+    }
+    if(hot.length) batchLoadFast(hot, 2);
+
+    // Priority 2: the rest of the prefetch window.
+    const warm = [];
+    for(let i=idx+4; i<=idx+12 && i<items.length; i++){
+      if(items[i].dataset.loaded==='0') warm.push(items[i]);
+    }
+    if(warm.length) batchLoadFast(warm, 4);
+
+    // Kick the immediate next video into actually buffering frames right now.
+    const next = items[idx+1];
+    if(next){
+      const nv = next.querySelector('video');
+      if(nv){ nv.preload = 'auto'; try{ nv.load(); }catch(e){} }
+    }
+    const next2 = items[idx+2];
+    if(next2){
+      const nv2 = next2.querySelector('video');
+      if(nv2){ nv2.preload = 'auto'; try{ nv2.load(); }catch(e){} }
+    }
+  }
+
+  function pauseAllExcept(except){
+    items.forEach(it => {
+      const v = it.querySelector('video');
+      if(it !== except){ try{ v.pause(); v.currentTime=0; }catch(e){} }
+    });
+  }
+
+  // ---- Snap observer ----
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(async (entry)=>{
+      if(entry.isIntersecting && entry.intersectionRatio >= 0.7){
+        const item = entry.target;
+        current = item;
+        pauseAllExcept(item);
+        const idx = items.indexOf(item);
+        prewarmAround(idx);
+        // Record to watched history for personalized recommendations
+        pushHistory({
+          vid: item.dataset.vid,
+          title: item.dataset.title || '',
+          author: item.dataset.author || '',
+          ts: Date.now(),
+        });
+        // Update URL
+        try{
+          const np = '/shorts/' + item.dataset.vid;
+          if(location.pathname !== np){
+            history.replaceState(null, '', np);
+            document.title = (item.dataset.title||'Shorts') + ' - Shorts | 仙人Tube Pro';
+          }
+        }catch(e){}
+        // Wait for source if needed, then play
+        const v = item.querySelector('video');
+        if(item.dataset.loaded==='loading'){
+          await new Promise(r=>{
+            const t = setInterval(()=>{
+              if(item.dataset.loaded!=='loading'){ clearInterval(t); r(); }
+            }, 80);
+          });
+        }
+        if(v.src || v.querySelector('source')?.src){
+          v.play().catch(()=>{});
+        }
+        // Near end? load more — fire much earlier so scroll never stalls
+        if(idx >= items.length - 12 && !isLoadingMore){
+          loadMoreShorts(false);
+        }
+      }
+    });
+  }, {root: feed, threshold:[0.7]});
+  items.forEach(it => io.observe(it));
+
+  // Try first-item autoplay
+  items[0].querySelector('video').play().catch(()=>{});
+
+  // ---- Infinite scroll: fetch more strict-shorts ----
+  let fetchPage = 1;
+  async function loadMoreShorts(force){
+    if(isLoadingMore) return;
+    isLoadingMore = true;
+    try{
+      fetchPage += 1;
+      // Personalized: blend the current title with watched-history bias
+      const histQ = recommendQuery();
+      const curQ = (current && current.dataset.title)
+        ? current.dataset.title.split(/\s+/).slice(0,3).join(' ') : '';
+      const q = histQ
+        ? (Math.random() < 0.6 ? histQ : (curQ || histQ))
+        : (curQ || 'shorts');
+      const res = await fetch('/api/shorts_feed?q=' + encodeURIComponent(q) + '&page=' + fetchPage);
+      const data = await res.json();
+      const existing = new Set(items.map(i => i.dataset.vid));
+      const fresh = (data.items||[]).filter(x => !existing.has(x.videoId));
+      if(!fresh.length){
+        // fallback: generic shorts
+        const r2 = await fetch('/api/shorts_feed?q=shorts&page=' + fetchPage);
+        const d2 = await r2.json();
+        (d2.items||[]).filter(x => !existing.has(x.videoId)).forEach(x => fresh.push(x));
+      }
+      fresh.slice(0, 16).forEach(meta => appendShort(meta));
+      // Immediately start pre-warming the newly appended items in small parallel batches
+      const newOnes = items.filter(it => it.dataset.loaded === '0').slice(0, 12);
+      if(newOnes.length) batchLoadFast(newOnes, 4);
+    }catch(e){
+      console.error(e);
+    }finally{
+      isLoadingMore = false;
+    }
+  }
+  window.loadMoreShorts = loadMoreShorts;
+
+  function appendShort(meta){
+    const sec = document.createElement('section');
+    sec.className = 'short-item';
+    sec.dataset.vid = meta.videoId;
+    sec.dataset.title = meta.title || '';
+    sec.dataset.author = meta.author || '';
+    sec.dataset.loaded = '0';
+    sec.innerHTML = `
+      <img class="poster" src="/proxy/thumb?v=${meta.videoId}" alt="">
+      <div class="stage">
+        <video loop playsinline preload="none" poster="/proxy/thumb?v=${meta.videoId}"></video>
+      </div>
+      <div class="center-overlay">
+        <i class="icon fas fa-play"></i>
+        <div class="spinner"></div>
+      </div>
+      <div class="progress"><div></div></div>
+      <div class="side">
+        <div class="btn"><div class="icon-c"><i class="fas fa-heart"></i></div><div class="lbl">高評価</div></div>
+        <div class="btn"><div class="icon-c"><i class="fas fa-comment-dots"></i></div><div class="lbl">コメント</div></div>
+        <div class="btn"><div class="icon-c"><i class="fas fa-share"></i></div><div class="lbl">共有</div></div>
+        <div class="btn"><div class="icon-c"><i class="fab fa-youtube"></i></div><div class="lbl">YouTube</div></div>
+      </div>
+      <div class="bottom-info">
+        <div class="author-row"><div class="author">@${meta.author||''}</div></div>
+        <div class="vt">${(meta.title||'').replace(/</g,'&lt;')}</div>
+      </div>`;
+    feed.insertBefore(sec, endCard);
+    items.push(sec);
+    bind(sec);
+    io.observe(sec);
+    // Wire side buttons
+    const btns = sec.querySelectorAll('.side .btn');
+    btns[0].onclick = (e)=>{ e.stopPropagation(); likeToggle(btns[0]); };
+    btns[1].onclick = (e)=>{ e.stopPropagation(); openSheet('comments'); };
+    btns[2].onclick = (e)=>{ e.stopPropagation(); shareCurrent(); };
+    btns[3].onclick = (e)=>{ e.stopPropagation(); openCurrentYT(); };
+  }
+
+  // ---- Keyboard shortcuts ----
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === ' '){
+      const v = current.querySelector('video');
+      if(v.paused) v.play(); else v.pause();
+      e.preventDefault();
+    } else if(e.key === 'ArrowDown' || e.key === 'j'){
+      const next = items[items.indexOf(current)+1];
+      if(next) next.scrollIntoView({behavior:'smooth'});
+    } else if(e.key === 'ArrowUp' || e.key === 'k'){
+      const prev = items[items.indexOf(current)-1];
+      if(prev) prev.scrollIntoView({behavior:'smooth'});
+    } else if(e.key === 'm'){
+      const v = current.querySelector('video');
+      v.muted = !v.muted;
+    }
+  });
+
+  // ---- Wheel: snap on small movements ----
+  let wheelLock = 0;
+  feed.addEventListener('wheel', (e)=>{
+    if(Math.abs(e.deltaY) < 8) return;
+    const now = Date.now();
+    if(now - wheelLock < 500) return;
+    wheelLock = now;
+    const idx = items.indexOf(current);
+    const target = e.deltaY > 0 ? items[idx+1] : items[idx-1];
+    if(target){ target.scrollIntoView({behavior:'smooth'}); e.preventDefault(); }
+  }, {passive:false});
+
+  // ---- Sheet ----
+  window.openSheet = function(tab){
+    sheetTitle.textContent = tab === 'comments' ? 'コメント' : '説明';
+    sheetBody.innerHTML = tab === 'comments'
+      ? '<p style="color:#888;text-align:center;margin-top:40px;">コメントは利用できません</p>'
+      : '<p style="font-weight:700;margin-bottom:10px;">' + (current.dataset.title||'') + '</p>'
+        + '<p style="color:#aaa;font-size:13px;">@' + (current.dataset.author||'') + '</p>';
+    sheet.classList.add('open'); overlay.style.display='block';
+  };
+  window.closeSheet = function(){ sheet.classList.remove('open'); overlay.style.display='none'; };
+
+  // ---- Actions ----
+  window.shareCurrent = async function(){
+    const url = location.origin + '/shorts/' + current.dataset.vid;
+    if(navigator.share){
+      try{ await navigator.share({title: current.dataset.title, url}); }catch(e){}
+    } else {
+      try{ await navigator.clipboard.writeText(url); alert('URLをコピーしました'); }
+      catch(e){ prompt('URL', url); }
+    }
+  };
+  window.openCurrentYT = function(){
+    window.open('https://www.youtube.com/shorts/' + current.dataset.vid, '_blank');
+  };
+  window.likeToggle = function(btn){
+    btn.classList.toggle('liked');
+    const ic = btn.querySelector('.icon-c i');
+    if(btn.classList.contains('liked')){
+      ic.style.color = 'var(--accent)';
+      ic.style.textShadow = '0 0 10px var(--accent-glow)';
+    } else {
+      ic.style.color = '';
+      ic.style.textShadow = '';
+    }
+  };
+
+  // Initial pre-warm
+  prewarmAround(0);
+})();
+</script>
+</body>
+</html>
