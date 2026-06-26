@@ -402,3 +402,23 @@ html[data-theme="glass"] .video-meta strong { color: #0d1b2a !important; }
 html[data-theme="glass"] #st-corner-actions button:hover {
     background: linear-gradient(135deg,#ff7eb3,#ff4f9a) !important; color:#fff;
 }
+
+/* ===== v1.4.0 UI polish ===== */
+/* Smoother card hover & transitions */
+.video-card, .recommend-card, .channel-card, .info-card, .description-card {
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease !important;
+}
+.video-card:hover, .recommend-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.12) !important;
+}
+/* Snappier image loads */
+img { image-rendering: -webkit-optimize-contrast; }
+/* Slightly nicer focus state */
+input:focus, button:focus-visible, a:focus-visible {
+    outline: 2px solid var(--st-accent, #007bff);
+    outline-offset: 2px;
+}
+/* Subtle page fade-in */
+@keyframes st-page-fade { from { opacity:.0; transform: translateY(4px);} to {opacity:1; transform:none;} }
+body { animation: st-page-fade .25s ease-out both; }

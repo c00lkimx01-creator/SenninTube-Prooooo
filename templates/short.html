@@ -396,30 +396,26 @@
 
   // Pre-warm: load the next 12 items aggressively so the next short is ready instantly.
   function prewarmAround(idx){
-    // Priority 1: the immediate next 3 in tiny batches → fastest first paint.
+    // Priority 1: immediate next 4 — single-id batches so each URL returns ASAP.
     const hot = [];
-    for(let i=idx; i<=idx+3 && i<items.length; i++){
+    for(let i=idx; i<=idx+4 && i<items.length; i++){
       if(items[i].dataset.loaded==='0') hot.push(items[i]);
     }
-    if(hot.length) batchLoadFast(hot, 2);
+    if(hot.length) batchLoadFast(hot, 1);
 
-    // Priority 2: the rest of the prefetch window.
+    // Priority 2: wider prefetch window for smoother scrolling.
     const warm = [];
-    for(let i=idx+4; i<=idx+12 && i<items.length; i++){
+    for(let i=idx+5; i<=idx+16 && i<items.length; i++){
       if(items[i].dataset.loaded==='0') warm.push(items[i]);
     }
-    if(warm.length) batchLoadFast(warm, 4);
+    if(warm.length) batchLoadFast(warm, 3);
 
-    // Kick the immediate next video into actually buffering frames right now.
-    const next = items[idx+1];
-    if(next){
-      const nv = next.querySelector('video');
+    // Aggressively buffer the next 3 videos right now.
+    for(let k=1; k<=3; k++){
+      const nx = items[idx+k];
+      if(!nx) break;
+      const nv = nx.querySelector('video');
       if(nv){ nv.preload = 'auto'; try{ nv.load(); }catch(e){} }
-    }
-    const next2 = items[idx+2];
-    if(next2){
-      const nv2 = next2.querySelector('video');
-      if(nv2){ nv2.preload = 'auto'; try{ nv2.load(); }catch(e){} }
     }
   }
 

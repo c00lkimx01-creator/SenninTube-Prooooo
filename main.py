@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Query
+from fastapi import FastAPI, Request, Query, Form, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -9,6 +9,25 @@ import random
 from datetime import datetime
 
 app = FastAPI()
+
+# ====== Auth (simple shared-password gate) ======
+AUTH_PASSWORD = "senninpro"
+AUTH_COOKIE = "st_auth"
+AUTH_COOKIE_VALUE = "ok-senninpro-v1"
+AUTH_EXEMPT_PREFIXES = ("/login", "/logout", "/statics", "/favicon", "/proxy/thumb", "/thumbnail")
+
+@app.middleware("http")
+async def auth_gate(request, call_next):
+    path = request.url.path
+    if not any(path == p or path.startswith(p) for p in AUTH_EXEMPT_PREFIXES):
+        if request.cookies.get(AUTH_COOKIE) != AUTH_COOKIE_VALUE:
+            # Only gate page navigations (HTML). Let API/data calls pass with 401 not redirect.
+            accept = request.headers.get("accept", "")
+            if "text/html" in accept:
+                return RedirectResponse(url="/login", status_code=303)
+            return Response("Unauthorized", status_code=401)
+    return await call_next(request)
+
 
 # Serve static assets (CSS/JS used by the shell/sidebar/themes)
 try:
@@ -29,6 +48,8 @@ SHELL_BODY = '<script src="/statics/js/sennintube-shell.js" defer></script>'
 async def inject_shell(request, call_next):
     response = await call_next(request)
     try:
+        if request.url.path.startswith('/login') or request.url.path.startswith('/logout'):
+            return response
         ct = response.headers.get("content-type", "")
         if "text/html" not in ct:
             return response
@@ -92,6 +113,30 @@ async def fetch_invidious(endpoint: str, params: dict = None, force_instance: st
             continue
     
     raise last_error if last_error else Exception("All instances failed")
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_get(request: Request):
+    if request.cookies.get(AUTH_COOKIE) == AUTH_COOKIE_VALUE:
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+
+@app.post("/login", response_class=HTMLResponse)
+async def login_post(request: Request, password: str = Form(...), remember: str = Form(None)):
+    if password == AUTH_PASSWORD:
+        resp = RedirectResponse(url="/", status_code=303)
+        max_age = 60*60*24*30 if remember else None
+        resp.set_cookie(AUTH_COOKIE, AUTH_COOKIE_VALUE, max_age=max_age,
+                        httponly=True, samesite="lax", path="/")
+        return resp
+    return templates.TemplateResponse("login.html",
+        {"request": request, "error": "パスワードが違います"}, status_code=401)
+
+@app.get("/logout")
+async def logout():
+    resp = RedirectResponse(url="/login", status_code=303)
+    resp.delete_cookie(AUTH_COOKIE, path="/")
+    return resp
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -358,16 +403,16 @@ async def shorts_batch(ids: str):
         d = None
         # 1) Primary: yt.omada.cafe, tight 1.8s timeout
         try:
-            d = await fetch_at(PRIMARY_INSTANCE, v, 1.8)
+            d = await fetch_at(PRIMARY_INSTANCE, v, 1.2)
         except Exception:
             d = None
         # 2) Fallback: race the next 3 backups, take first success (1.8s cap)
         if d is None and backup_pool:
             picks = backup_pool[:3]
-            tasks = [asyncio.create_task(fetch_at(i, v, 1.8)) for i in picks]
+            tasks = [asyncio.create_task(fetch_at(i, v, 1.2)) for i in picks]
             try:
                 done, pending = await asyncio.wait(
-                    tasks, return_when=asyncio.FIRST_COMPLETED, timeout=2.0)
+                    tasks, return_when=asyncio.FIRST_COMPLETED, timeout=1.5)
                 for t in done:
                     try:
                         d = t.result(); break

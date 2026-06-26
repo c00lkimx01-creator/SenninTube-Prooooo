@@ -321,7 +321,7 @@
         <div class="video-section">
             <div id="player-wrapper">
                 <div id="loader" class="loader-overlay"><div class="custom-loader"></div></div>
-                <video id="video-player" controls autoplay poster="/thumbnail?v={{ videoid }}" src="{{ videourls[0] }}">
+                <video id="video-player" controls autoplay playsinline preload="auto" poster="/thumbnail?v={{ videoid }}" src="{{ videourls[0] }}">
                     ブラウザが動画再生に対応していません。
                 </video>
                 <audio id="audio-sync" style="display:none;"></audio>
@@ -591,6 +591,9 @@
             showNotify("動画ソースを再接続しました");
         }
 
+        
+        video.addEventListener('loadeddata', () => { loader.style.display = 'none'; });
+        video.addEventListener('canplay',    () => { loader.style.display = 'none'; });
         let loadStuckTimer = null;
         video.addEventListener('play', () => {
             loadStuckTimer = setTimeout(() => {
