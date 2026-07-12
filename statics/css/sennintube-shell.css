@@ -403,7 +403,7 @@ html[data-theme="glass"] #st-corner-actions button:hover {
     background: linear-gradient(135deg,#ff7eb3,#ff4f9a) !important; color:#fff;
 }
 
-/* ===== v1.5.0 UI polish ===== */
+/* ===== v1.4.0 UI polish ===== */
 /* Smoother card hover & transitions */
 .video-card, .recommend-card, .channel-card, .info-card, .description-card {
     transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease !important;

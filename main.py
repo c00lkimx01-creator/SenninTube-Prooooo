@@ -462,47 +462,29 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
         async def fetch_video_speculative(vid):
             if force_instance:
                 return await fetch_invidious(f"/videos/{vid}", force_instance=force_instance)
-
-            # PRIMARY instance (yt.omada.cafe) を最優先。まずは短めタイムアウトで試し、
-            # 失敗/遅延した場合のみ他インスタンスへフォールバックする。
-            async def try_primary():
-                url = f"{PRIMARY_INSTANCE.rstrip('/')}/api/v1/videos/{vid}"
-                resp = await client_session.get(url, timeout=6.0)
-                resp.raise_for_status()
-                return resp.json()
-
-            try:
-                return await try_primary()
-            except Exception:
-                pass
-
-            # フォールバック: PRIMARY 以外を並列レースで最速の応答を採用
-            others = [i for i in INVIDIOUS_INSTANCES if i != PRIMARY_INSTANCE]
-            random.shuffle(others)
-            target_instances = others[:4]
-
+            
+            instances = list(INVIDIOUS_INSTANCES)
+            random.shuffle(instances)
+            target_instances = instances[:4]
+            
             async def task(instance):
                 url = f"{instance.rstrip('/')}/api/v1/videos/{vid}"
-                resp = await client_session.get(url, timeout=5.0)
+                resp = await client_session.get(url, timeout=4.0)
                 resp.raise_for_status()
                 return resp.json()
 
             tasks = [asyncio.create_task(task(inst)) for inst in target_instances]
-            if tasks:
-                done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-                res = None
-                for t in done:
-                    try:
-                        res = t.result(); break
-                    except Exception:
-                        continue
-                for t in pending:
-                    t.cancel()
-                if res is not None:
-                    return res
-
-            # 最終フォールバック: 順次リトライ (PRIMARY 優先)
-            return await fetch_invidious(f"/videos/{vid}")
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            
+            res = None
+            for t in done:
+                try: res = t.result(); break
+                except: continue
+            
+            for t in pending: t.cancel()
+            
+            if res is None: res = await fetch_invidious(f"/videos/{vid}")
+            return res
 
         video_task = fetch_video_speculative(v)
         comment_task = fetch_invidious(f"/comments/{v}", force_instance=force_instance)
